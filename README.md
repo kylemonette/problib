@@ -1,6 +1,12 @@
-# problib
+# Prob Library
 
-A LaTeX package for keeping a library of problems and building assignments from it using the `exam` class.
+### Author: Kyle Monette, [kylemonette.github.io](https://kylemonette.github.io)
+
+#### Updated: October 4, 2026
+
+---
+
+`problib` is a LaTeX package for keeping a library of problems and building assignments from it using the `exam` class.
 Each assignment records which problems it used, and a catalog document collects that history so you can see when and where every problem was last used.
 
 Assignments compile with pdfLaTeX, XeLaTeX or LuaLaTeX; the catalog requires LuaLaTeX.
@@ -8,6 +14,22 @@ Assignments compile with pdfLaTeX, XeLaTeX or LuaLaTeX; the catalog requires Lua
 The full manual is [`problib.pdf`](problib.pdf). Working examples are in this repository:
 [`library/`](library) holds sample problems and a catalog, and [`examples/`](examples) holds a
 worksheet and an exam built from them.
+
+## Installation
+
+**From CTAN:** `problib` is now [available on CTAN](https://ctan.org/pkg/problib) and can be easily downloaded from there.
+
+**From this repository:** the package is distributed as a `.dtx`/`.ins` pair,
+the standard format for LaTeX packages. To build and install it by hand:
+
+```sh
+tex problib.ins        # generates problib.sty
+pdflatex problib.dtx   # generates problib.pdf (run twice)
+```
+
+Then move `problib.sty` into a directory TeX searches (for example, your local texmf tree).
+
+
 
 ## Problem files
 
@@ -37,11 +59,6 @@ Differentiate each function.
 \end{problem}
 ```
 
-- Any metadata key is allowed; all keys appear in the catalog. `points`, `tags`, `topics` and
-  `difficulty` have special uses. Brace values that contain commas or `]`.
-- The body uses ordinary `exam` markup: `parts`, `subparts`, `\part[pts]`, `solution`.
-- Give points on the question (`points`) or on its parts, not both, as `exam` adds them together.
-
 ## Assignments
 
 ```latex
@@ -68,56 +85,9 @@ Differentiate each function.
 \end{document}
 ```
 
-Each `\useproblem` typesets the problem as the next `\question`. Compiling the assignment also
-writes a usage record, `<jobname>.pbu`, next to it; this happens automatically, and the file never
-needs editing.
-
-### `\problibassignment{...}` (preamble)
-
-This defines metadata of the assignment in the preamble of the file, which is accessed via the catalog.
-
-| Key | Meaning |
-|---|---|
-| `name` | Assignment name (default: file name) |
-| `course`, `term`, `type` | Shown in usage history |
-| `date` | `YYYY-MM-DD` (default: today); used for sorting history and reuse warnings |
-| `record` | `false` keeps this document out of the usage history (drafts, practice) |
-
-### `\problibsetup{...}`
-
-This command sets some options for the assignment, such as the path to the library and vertical spacing between parts and questions. 
-
-| Key | Meaning |
-|---|---|
-| `library` | Path to the library (absolute, or relative to the document) |
-| `roots` | Comma list of folders the catalog searches for `.pbu` records |
-| `problemspace` | Space after a question that has no parts |
-| `partspace` | Space after each part: one length, or a list used in order (last value repeats) |
-| `subpartspace` | Same as `partspace`, for subparts |
-| `spacestyle` | `blank`, `lines`, `dottedlines`, `box` or `grid` |
-| `keyspace` | Keep the answer space when `\printanswers` is on (default `false`) |
-| `showdata` | Show each problem's path, title and a table of its earlier uses above it |
-| `warnreuse` | Warn when a problem was used within this many days of the assignment date |
-
-Lengths may be anything `exam` accepts, including `\fill` and `\stretch{2}`.
-
-Answer space goes to the innermost level: a question with parts gets `partspace` after each
-part and no `problemspace`; a part with subparts gets `subpartspace` after each subpart and no
-`partspace`.
-
-### Other commands
-
-| Command | Meaning |
-|---|---|
-| `\useproblem[opts]{path}` | Insert a problem. Options: `space`, `partspace`, `subpartspace`, `spacestyle`, `points`, `newpage` |
-| `\problemspace[style]{length}` | Extra answer space anywhere |
-| `\problemmeta{key}` | A metadata value of the current problem, for use inside a problem file |
-
 ## Usage history and the catalog
 
-LaTeX can only write files next to the document being compiled, so each assignment keeps its
-own `.pbu` record. The catalog lives in the library folder and must be compiled there, since it
-treats the folder it is compiled in as the library. Compiling `library/catalog.tex` with LuaLaTeX:
+Compiling `library/catalog.tex` with LuaLaTeX:
 
 1. finds every problem in the library,
 2. reads every `.pbu` file under the `roots` folders,
@@ -134,18 +104,6 @@ Recompile the catalog after finishing assignments to bring the history up to dat
 \problibcatalog[folders = calculus, tags = {trig}, sort = lastused]
 \end{document}
 ```
-
-| Option | Meaning |
-|---|---|
-| `folders` | Only problems under these library folders |
-| `tags`, `topics` | Only problems with at least one of these (case-insensitive) |
-| `difficulty` | A value (`2`) or range (`1-3`) |
-| `unusedsince` | Only problems not used on or after this date |
-| `sort` | `path` (default), `difficulty`, or `lastused` (never-used first) |
-| `show` | Any of `metadata`, `usage`, `solution` (default: `{metadata, usage}`) |
-
-`\problibcatalog` with no options lists every problem. It may be used several times in one
-document, e.g., one section per folder.
 
 ## License
 
