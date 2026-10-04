@@ -2,7 +2,14 @@ README.txt
 
 # CTAN packaging
 make-ctan-zip.sh
-matrixdiagrams.zip
+problib.zip
+
+# Files written while building the manual
+/demo-*.tex
+/usage-db.tex
+/problib.pbu
+*.hd
+*.pbu
 
 ## Core latex/pdflatex auxiliary files:
 *.aux

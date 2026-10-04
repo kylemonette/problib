@@ -1,0 +1,14 @@
+% Compile with LuaLaTeX. Rebuilds usage-db.tex from the .pbu files under the configured roots.
+\documentclass{exam}
+\usepackage{amsmath}
+\usepackage[catalog, roots = {../examples}]{problib}
+
+\begin{document}
+
+\begin{center}
+\Large Problem Library
+\end{center}
+
+\problibcatalog
+
+\end{document}

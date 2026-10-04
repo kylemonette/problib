@@ -1,0 +1,1492 @@
+% \iffalse meta-comment
+%
+% problib.dtx
+% Copyright (C) 2026 Kyle Monette
+% https://github.com/kylemonette/problib
+%
+% This work may be distributed and/or modified under the
+% conditions of the LaTeX Project Public License, either version 1.3c
+% of this license or (at your option) any later version.
+% The latest version of this license is in
+%   https://www.latex-project.org/lppl.txt
+% and version 1.3c or later is part of all distributions of LaTeX
+% version 2008/05/04 or later.
+%
+% This work has the LPPL maintenance status `maintained'.
+%
+% The Current Maintainer of this work is Kyle Monette.
+%
+% This work consists of the files problib.dtx and
+% problib.ins and the derived file problib.sty.
+%
+% \fi
+%
+% \iffalse
+%<package>\NeedsTeXFormat{LaTeX2e}[2023-11-01]
+%<package>\ProvidesExplPackage{problib}{2026-10-04}{1.0}
+%<package>  {Problem library with usage tracking for the exam class}
+%
+%<*driver>
+\documentclass[11pt]{exam}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{geometry}
+\geometry{margin=0.8in}
+\usepackage{doc}
+\usepackage{showexpl}
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  breakatwhitespace=false,
+  columns=fullflexible,
+  showstringspaces=false,
+  explpreset={pos=b,numbers=none,rframe={},width=\linewidth}
+}
+\usepackage[hyperindex=false]{hyperref}
+\hypersetup{colorlinks=true}
+
+\begin{filecontents*}[overwrite]{demo-derivatives.tex}
+\begin{problem}[
+  title      = Derivatives,
+  topics     = {calculus},
+  tags       = {chain rule, product rule},
+  difficulty = 2,
+]
+Differentiate each function.
+\begin{parts}
+  \part[3] $f(x) = \sin(x^2)$
+  \part[3] $g(x) = x^2 e^x$
+  \part[4] $h(x) = \ln(\cos x)$
+\end{parts}
+\begin{solution}
+  (a) $2x\cos(x^2)$ \qquad (b) $(2x + x^2)e^x$ \qquad (c) $-\tan x$
+\end{solution}
+\end{problem}
+\end{filecontents*}
+\begin{filecontents*}[overwrite]{demo-integral.tex}
+\begin{problem}[
+  title      = Substitution,
+  topics     = {calculus},
+  tags       = {u-substitution},
+  difficulty = 2,
+  points     = 5,
+]
+Evaluate $\displaystyle\int x\sqrt{x^2 + 1}\,dx$.
+\begin{solution}
+  $\frac{1}{3}(x^2 + 1)^{3/2} + C$
+\end{solution}
+\end{problem}
+\end{filecontents*}
+\begin{filecontents*}[overwrite]{demo-eigen.tex}
+\begin{problem}[
+  title      = Eigenvalues,
+  topics     = {linear algebra},
+  difficulty = 3,
+]
+Let $A = \begin{pmatrix} 2 & 1 \\ 1 & 2 \end{pmatrix}$.
+\begin{parts}
+  \part Find the eigenpairs of $A$.
+  \begin{subparts}
+    \subpart[3] Eigenvalues.
+    \subpart[3] Eigenvectors.
+  \end{subparts}
+  \part[4] Diagonalize $A$.
+\end{parts}
+\end{problem}
+\end{filecontents*}
+\begin{filecontents*}[overwrite]{usage-db.tex}
+\problibusage{demo-derivatives}{\problibentry{2026-02-14}{Quiz 2}{MATH 221}{Spring 2026}{quiz}{quiz2.pbu}\problibentry{2025-09-30}{Worksheet 4}{MATH 221}{Fall 2025}{worksheet}{ws4.pbu}}
+\end{filecontents*}
+
+\usepackage{problib}
+\problibassignment{name = problib manual, record = false}
+
+\newcommand\pl{\textsf{problib}}
+\providecommand\marg[1]{\texttt{\{}\meta{#1}\texttt{\}}}
+\providecommand\oarg[1]{\texttt{[}\meta{#1}\texttt{]}}
+
+\title{\texttt{problib.sty}\\[0.5ex]
+  \large A problem library with usage tracking for the \texttt{exam} class}
+\author{Kyle Monette (\href{https://kylemonette.github.io}{kylemonette.github.io}) \\
+  \small Released under the LaTeX Project Public License (LPPL), version 1.3c}
+\date{\today\ --- Version 1.0}
+
+\pagestyle{plain}
+
+\begin{document}
+\maketitle
+
+\section*{Overview}
+
+\pl{} keeps a library of individual problems, each stored in its own file with
+metadata such as topics, tags and difficulty. Assignments are \texttt{exam}-class documents that pull
+problems from the library by path. Settings that belong to the assignment
+rather than the problem, such as the blank space left for students' work, are
+made in the assignment itself, so the same problem can be reused anywhere.
+
+Every assignment records which problems it used. A catalog document, compiled
+with Lua\LaTeX, gathers those records into a usage history and typesets the
+library with each problem's metadata and the assignments it appeared in.
+Assignments can show that history next to each problem and warn when a problem
+was used recently.
+
+A typical workflow is:
+\begin{enumerate}
+\item write problems into the library (Section~\ref{sec:problems});
+\item build assignments from them with \cs{useproblem} (Section~\ref{sec:assignments});
+\item compile the catalog to update the usage history (Section~\ref{sec:catalog}).
+\end{enumerate}
+
+\noindent Complete examples are in the \pl{} repository at \url{https://github.com/kylemonette/problib}.
+
+\tableofcontents
+
+\section{Quick reference}
+
+\noindent
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\multicolumn{2}{@{}l}{Problem files} \\
+\midrule
+\texttt{\textbackslash begin\{problem\}[metadata]}
+  & Holds one problem in a library file; its metadata goes in the optional argument. \\
+\cs{problemmeta}\marg{key}
+  & Expands to a metadata value of the problem being typeset. \\
+\midrule
+\multicolumn{2}{@{}l}{Assignments} \\
+\midrule
+\cs{usepackage}\oarg{options}\texttt{\{problib\}}
+  & Loads the package; options are the keys of \cs{problibsetup}, usually \texttt{library}. \\
+\cs{problibassignment}\marg{keys}
+  & Preamble only. Records the assignment's name, course, term, type and date. \\
+\cs{problibsetup}\marg{keys}
+  & Sets defaults: library folder, \texttt{showdata}, \texttt{warnreuse}, \ldots \\
+\cs{useproblem}\oarg{options}\marg{path}
+  & Typesets the problem at \meta{path} and records its use. \\
+\cs{problemspace}\oarg{style}\marg{length}
+  & Adds answer space at that point. \\
+\midrule
+\multicolumn{2}{@{}l}{Catalog (using Lua\LaTeX)} \\
+\midrule
+\cs{usepackage}\texttt{[catalog]\{problib\}}
+  & Loads the package in catalog mode; the \texttt{roots} option lists the folders holding assignments. \\
+\cs{problibcatalog}\oarg{filters}
+  & Updates the usage database and typesets the matching problems with their metadata and usage. \\
+\bottomrule
+\end{tabularx}
+
+\section{Requirements}
+
+\pl{} requires the \texttt{exam} document class and a \LaTeX{} kernel from
+November 2023 or later; it loads \texttt{xcolor} and \texttt{tabularx}.
+Assignments compile with pdf\LaTeX, Xe\LaTeX{} or Lua\LaTeX. The catalog
+requires Lua\LaTeX, which it uses to list the contents of folders.
+
+\section{Problem files}\label{sec:problems}
+
+A library is a folder of problem files, organized into subfolders however you
+like. Each file holds one \texttt{problem} environment and nothing else. A
+problem is referred to by its path inside the library, without the
+\texttt{.tex} extension.
+
+\begin{lstlisting}
+\begin{problem}[
+  title      = Chain rule with trig,
+  topics     = {calculus, derivatives},
+  tags       = {chain rule, trig},
+  difficulty = 2,
+  time       = 5,
+  author     = John Smith,
+  created    = 2025-08-14,
+]
+Differentiate each function.
+\begin{parts}
+  \part[4] $f(x) = \sin(x^2)$
+  \part[6] $g(x) = \cos^3(2x)$
+\end{parts}
+\begin{solution}
+  (a) $2x\cos(x^2)$ \qquad (b) $-6\cos^2(2x)\sin(2x)$
+\end{solution}
+\end{problem}
+\end{lstlisting}
+
+The body is written exactly as inside an \texttt{exam} \cs{question}: use
+\texttt{parts}, \texttt{subparts}, \cs{part}\oarg{points}, \texttt{solution}
+and the other environments of the class.
+
+\subsection{Metadata}
+
+The optional argument of \texttt{problem} is a list of
+\meta{key}\texttt{=}\meta{value} pairs. Any key may be used, and every key is
+shown in the catalog in the order written. A few keys have a special meaning:
+
+\medskip
+\noindent
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\texttt{title} & Shown next to the problem's path in the catalog and in \texttt{showdata} notes. \\
+\texttt{points} & The question's point value, passed to \cs{question}\oarg{points}. \\
+\texttt{topics}, \texttt{tags} & Comma lists, matched by the catalog filters of the same names. \\
+\texttt{difficulty} & An integer, used by the catalog to filter and sort. \\
+\bottomrule
+\end{tabularx}
+\medskip
+
+Brace a value that contains a comma or a closing bracket, as in
+\texttt{tags = \{chain rule, trig\}}. Give points either with \texttt{points}
+or on the individual parts, not both: \texttt{exam} adds them together.
+
+Inside the problem, \cs{problemmeta}\marg{key} expands to the value of
+\meta{key}, or to nothing if the key is not set; for example,
+\verb|\problemmeta{time}| gives the estimated time of the problem above.
+
+\section{Building an assignment}\label{sec:assignments}
+
+An assignment is an \texttt{exam} document that loads \pl{}, describes itself
+with \cs{problibassignment}, and calls \cs{useproblem} inside a
+\texttt{questions} environment. Its own \cs{question}s can be mixed freely
+with library problems.
+
+\begin{lstlisting}
+\documentclass[addpoints]{exam}
+\usepackage{amsmath}
+\usepackage[library = /Users/me/problems]{problib}
+
+\problibassignment{
+  name   = Exam 1,
+  course = MATH 221,
+  term   = Fall 2026,
+  type   = exam,
+  date   = 2026-10-12,
+}
+\problibsetup{problemspace = \fill, partspace = 1.5in, warnreuse = 120}
+
+\begin{document}
+\begin{questions}
+\useproblem{calculus/derivatives/chain-rule-01}
+\useproblem[points = 10]{calculus/integrals/u-sub-01}
+\useproblem[newpage]{calculus/limits/squeeze-01}
+\end{questions}
+\end{document}
+\end{lstlisting}
+
+
+
+\subsection{Settings}
+
+\cs{problibsetup}\marg{keys} sets the defaults for the whole document. The
+same keys may be given as package options.
+
+\medskip
+\noindent
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\texttt{library} & The folder holding the problems, absolute or relative to the assignment's folder. Without it, problem paths are taken relative to the assignment's folder. \\
+\texttt{problemspace}, \ldots & The answer-space keys \texttt{problemspace}, \texttt{partspace}, \texttt{subpartspace}, \texttt{spacestyle} and \texttt{keyspace}; see Section~\ref{sec:space}. \\
+\texttt{showdata} & Show each problem's usage history above it; see Section~\ref{sec:showdata}. \\
+\texttt{warnreuse} & Warn about recently used problems; see Section~\ref{sec:warnreuse}. \\
+\texttt{roots} & Catalog only; see Section~\ref{sec:catalog}. \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Describing the assignment}
+
+\cs{problibassignment}\marg{keys} may only be used in the preamble. Its keys are
+written to the assignment's usage record (Section~\ref{sec:usage}) and identify
+the assignment in the usage history.
+
+\medskip
+\noindent
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\texttt{name} & Name of the assignment. Default: the file name. \\
+\texttt{course}, \texttt{term}, \texttt{type} & Free text, shown in the usage history. \\
+\texttt{date} & \texttt{YYYY-MM-DD}. Default: the day of compilation. Orders the history and is the reference date for \texttt{warnreuse}. \\
+\texttt{record} & \texttt{false} keeps the assignment out of the usage history (drafts, practice versions). Default: \texttt{true}. \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Inserting problems}
+
+\cs{useproblem}\oarg{options}\marg{path} reads the file
+\meta{library}\texttt{/}\meta{path}\texttt{.tex}, adds \meta{path} to the
+assignment's usage record, and typesets the problem as the next \cs{question},
+with the point value from its \texttt{points} metadata if it has one. A
+missing file is an error and is not recorded. The options apply to this problem
+only:
+
+\medskip
+\noindent
+\begin{tabularx}{\linewidth}{lX@{}}
+\toprule
+\texttt{space}, \texttt{partspace}, \texttt{subpartspace}, \texttt{spacestyle}
+  & Answer space; see Section~\ref{sec:space}. \texttt{space} sets \texttt{problemspace}. \\
+\texttt{points} & Points for the question, overriding the problem's \texttt{points}. \\
+\texttt{newpage} & Start the question on a new page. \\
+\bottomrule
+\end{tabularx}
+
+\begin{LTXexample}
+\begin{questions}
+\useproblem{demo-derivatives}
+\useproblem[points = 8]{demo-integral}
+\end{questions}
+\end{LTXexample}
+
+\section{Answer space}\label{sec:space}
+
+Answer space is chosen by the assignment and never stored in a problem.
+Defaults are set with \cs{problibsetup} and overridden for a single problem
+with the options of \cs{useproblem}. By default no space is added.
+
+\medskip
+\noindent
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\texttt{problemspace} & Space after a question that has no parts. \\
+\texttt{partspace} & Space after each part. A single length applies to every part; a comma list gives the space after the first, second, \ldots{} part, and its last value is reused for any further parts. \\
+\texttt{subpartspace} & The same, for the subparts of each part. \\
+\texttt{spacestyle} & How the space is filled: \texttt{blank} (default), \texttt{lines}, \texttt{dottedlines}, \texttt{box} or \texttt{grid}. \\
+\texttt{keyspace} & Keep the space in answer keys (when \cs{printanswers} is on). Default: \texttt{false}. \\
+\bottomrule
+\end{tabularx}
+\medskip
+
+Lengths are anything \texttt{exam} accepts, including \cs{fill} and
+\cs{stretch}\marg{n}. The styles other than \texttt{blank} use \texttt{exam}'s
+\cs{fillwithlines}, \cs{fillwithdottedlines}, \cs{makeemptybox} and
+\cs{fillwithgrid}.
+
+Space goes only where answers are written, at the innermost level of a
+problem. A question with parts gets \texttt{partspace} after each part and no
+\texttt{problemspace}; a part with subparts gets \texttt{subpartspace} after
+each subpart and no \texttt{partspace}.
+
+Here each part gets its own space from a list:
+
+\begin{LTXexample}
+\begin{questions}
+\useproblem[partspace = {0.2in, 0.6in, 0.3in}]{demo-derivatives}
+\end{questions}
+\end{LTXexample}
+
+Here part (a) has subparts, so the space follows each subpart, while part (b)
+gets \texttt{partspace}:
+
+\begin{LTXexample}
+\begin{questions}
+\useproblem[partspace = 0.4in, subpartspace = 0.2in]{demo-eigen}
+\end{questions}
+\end{LTXexample}
+
+Questions without parts use \texttt{space}, shown here in two styles:
+
+\begin{LTXexample}
+\begin{questions}
+\useproblem[space = 0.8in, spacestyle = lines]{demo-integral}
+\useproblem[space = 0.8in, spacestyle = box]{demo-integral}
+\end{questions}
+\end{LTXexample}
+
+\cs{problemspace}\oarg{style}\marg{length} adds space at the point where it is
+used, for example after a \cs{question} of your own. It uses the current
+\texttt{spacestyle} unless \meta{style} is given.
+
+\subsection{Answer keys}
+
+\cs{printanswers} turns the same assignment into its answer key: solutions
+appear and answer space is dropped. Set \texttt{keyspace = true} to keep the
+space, so that the key has the same page layout as the assignment.
+
+\begin{LTXexample}
+\printanswers
+\begin{questions}
+\useproblem[partspace = 0.5in]{demo-derivatives}
+\end{questions}
+\end{LTXexample}
+
+\section{Usage tracking}\label{sec:usage}
+
+\TeX{} may write files only in the folder of the document being compiled, so
+each assignment keeps its own record. Compiling an assignment writes
+\meta{jobname}\texttt{.pbu} next to it, where \meta{jobname} is the file name of
+the assignment. The record lists the details from \cs{problibassignment} and
+every problem inserted with \cs{useproblem}. It is rewritten on every
+compilation, so it always matches the current assignment, and it never needs
+editing. Deleting it removes the assignment from the history; compiling the
+assignment again restores it.
+
+Compiling the catalog (Section~\ref{sec:catalog}) collects every record under
+the \texttt{roots} folders into the usage database, \texttt{usage-db.tex} in the
+library. Assignments read that file, so the history they see is as current as
+the last catalog compilation. Until the catalog has been compiled once,
+assignments compile normally and \pl{} issues a warning that the database is
+missing.
+
+\subsection{Showing usage in an assignment}\label{sec:showdata}
+
+With \texttt{showdata = true}, every problem is preceded by its path, its
+title, and a table of its earlier uses, newest first.
+
+\begin{LTXexample}
+\problibsetup{showdata = true}
+\begin{questions}
+\useproblem{demo-derivatives}
+\useproblem{demo-integral}
+\end{questions}
+\end{LTXexample}
+
+\subsection{Reuse warnings}\label{sec:warnreuse}
+
+\texttt{warnreuse = }\meta{days} checks each problem's most recent use in
+another assignment. If that use is less than \meta{days} days before the
+assignment's \texttt{date} (or after it), \pl{} writes a warning to the log, for
+example
+\begin{quote}\small
+\verb|Package problib Warning: Problem 'demo-derivatives' was used in|\\
+\verb|(problib)                'Quiz 2 (Spring 2026)' on 2026-02-14.|
+\end{quote}
+The default, \texttt{0}, disables the check.
+
+\section{The catalog}\label{sec:catalog}
+
+The catalog is a Lua\LaTeX{} document that lives in the library folder and must
+be compiled there: it treats the folder it is compiled in as the library.
+
+\begin{lstlisting}
+\documentclass{exam}
+\usepackage{amsmath}
+\usepackage[catalog, roots = {~/Teaching}]{problib}
+\begin{document}
+\problibcatalog
+\end{document}
+\end{lstlisting}
+
+\noindent Each compilation
+\begin{enumerate}
+\item finds every problem file in the library, including subfolders,
+\item reads every \texttt{.pbu} record under the \texttt{roots} folders,
+  including subfolders,
+\item writes the usage database \texttt{usage-db.tex} into the library, and
+\item typesets the matching problems, each headed by its path and title, with a
+  table of its metadata and a table of every assignment that used it.
+\end{enumerate}
+
+\texttt{roots} is a comma list of folders, absolute or relative to the
+library; a leading \texttt{\textasciitilde} stands for the home folder.
+Records of assignments with \texttt{record = false} are ignored.
+
+\cs{problibcatalog}\oarg{filters} with no filters lists every problem. It may be
+used several times in one catalog, for example once per section with a
+different \texttt{folders} filter. The filters are:
+
+\medskip
+\noindent
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\texttt{folders} & Only problems under these library folders. \\
+\texttt{tags}, \texttt{topics} & Only problems with at least one of the listed values (case-insensitive). \\
+\texttt{difficulty} & Only problems with this difficulty (\texttt{2}) or a difficulty in this range (\texttt{1-3}). \\
+\texttt{unusedsince} & Only problems not used on or after this date (\texttt{YYYY-MM-DD}). \\
+\texttt{sort} & Order: \texttt{path} (default), \texttt{difficulty}, or \texttt{lastused}, which lists never-used and least recently used problems first. \\
+\texttt{show} & What to show with each problem: any of \texttt{metadata}, \texttt{usage} and \texttt{solution}. Default: \texttt{\{metadata, usage\}}. \\
+\bottomrule
+\end{tabularx}
+\medskip
+
+For instance, to find trigonometry problems in the calculus folder that were not
+used during the last year, least recently used first:
+\begin{lstlisting}
+\problibcatalog[folders = calculus, tags = {trig}, unusedsince = 2025-10-01, sort = lastused]
+\end{lstlisting}
+
+The example catalog in the repository's \texttt{library} folder shows the
+result for a small library.
+
+
+\DocInput{problib.dtx}
+\end{document}
+%</driver>
+% \fi
+%
+% \section{Implementation}
+%
+% \subsection{Messages and dependencies}
+%
+%    \begin{macrocode}
+%<*package>
+\msg_new:nnn { problib } { no-exam }
+  { The~problib~package~requires~the~exam~document~class. }
+\msg_new:nnn { problib } { no-luatex }
+  { Catalog~mode~requires~LuaLaTeX. }
+\msg_new:nnn { problib } { not-catalog }
+  { \token_to_str:N \problibcatalog \ requires~the~'catalog'~package~option. }
+\msg_new:nnn { problib } { missing }
+  { Problem~file~'#1.tex'~not~found. }
+\msg_new:nnn { problib } { no-db }
+  {
+    No~usage~database~at~'#1'.~Compile~the~library~catalog~with~LuaLaTeX~
+    to~create~it.
+  }
+\msg_new:nnn { problib } { bad-date }
+  { Assignment~date~'#1'~is~not~YYYY-MM-DD;~reuse~warnings~disabled. }
+\msg_new:nnn { problib } { reuse }
+  { Problem~'#1'~was~used~in~'#2'~on~#3. }
+\msg_new:nnn { problib } { bad-show }
+  { Unknown~catalog~'show'~item~'#1'. }
+
+\IfClassLoadedTF { exam } { } { \msg_error:nn { problib } { no-exam } }
+\RequirePackage { xcolor }
+\RequirePackage { tabularx }
+%    \end{macrocode}
+%
+% \subsection{Settings}
+%
+% Keys of \cs{problibsetup}, which are also the package options.
+%
+%    \begin{macrocode}
+\str_new:N   \l__problib_library_str
+\str_new:N   \l__problib_roots_str
+\tl_new:N    \l__problib_problemspace_tl
+\clist_new:N \l__problib_partspace_clist
+\clist_new:N \l__problib_subpartspace_clist
+\str_new:N   \l__problib_spacestyle_str
+\bool_new:N  \l__problib_showdata_bool
+\bool_new:N  \l__problib_keyspace_bool
+\int_new:N   \l__problib_warnreuse_int
+\bool_new:N  \g__problib_catalog_bool
+
+\keys_define:nn { problib }
+  {
+    library      .code:n      = \__problib_set_library:n {#1} ,
+    roots        .code:n      = \str_set:Nn \l__problib_roots_str {#1} ,
+    problemspace .tl_set:N    = \l__problib_problemspace_tl ,
+    partspace    .clist_set:N = \l__problib_partspace_clist ,
+    subpartspace .clist_set:N = \l__problib_subpartspace_clist ,
+    spacestyle   .choices:nn  = { blank, lines, dottedlines, box, grid }
+      { \str_set:NV \l__problib_spacestyle_str \l_keys_choice_tl } ,
+    spacestyle   .initial:n   = blank ,
+    showdata     .bool_set:N  = \l__problib_showdata_bool ,
+    keyspace     .bool_set:N  = \l__problib_keyspace_bool ,
+    warnreuse    .int_set:N   = \l__problib_warnreuse_int ,
+    catalog      .bool_gset:N = \g__problib_catalog_bool ,
+    catalog      .usage:n     = load ,
+  }
+
+\cs_new_protected:Npn \__problib_set_library:n #1
+  {
+    \str_set:Nn \l__problib_library_str {#1}
+    \tl_trim_spaces:N \l__problib_library_str
+    \str_if_empty:NF \l__problib_library_str
+      {
+        \str_if_eq:eeF { \str_item:Nn \l__problib_library_str { -1 } } { / }
+          { \str_put_right:Nn \l__problib_library_str { / } }
+      }
+  }
+
+\NewDocumentCommand \problibsetup { m } { \keys_set:nn { problib } {#1} }
+%    \end{macrocode}
+%
+% Options of \cs{useproblem}, which forward the spacing keys to the main
+% family inside the group of the command.
+%
+%    \begin{macrocode}
+\tl_new:N   \l__problib_points_tl
+\bool_new:N \l__problib_newpage_bool
+\bool_new:N \l__problib_active_bool
+
+\keys_define:nn { problib / use }
+  {
+    space        .meta:nn    = { problib } { problemspace = {#1} } ,
+    partspace    .meta:nn    = { problib } { partspace = {#1} } ,
+    subpartspace .meta:nn    = { problib } { subpartspace = {#1} } ,
+    spacestyle   .meta:nn    = { problib } { spacestyle = {#1} } ,
+    points       .tl_set:N   = \l__problib_points_tl ,
+    newpage      .bool_set:N = \l__problib_newpage_bool ,
+    newpage      .default:n  = true ,
+  }
+%    \end{macrocode}
+%
+% \subsection{The assignment record}
+%
+% At the start of the document the assignment's details receive their
+% defaults, the record file \meta{jobname}\texttt{.pbu} is opened and its
+% header written, and the usage database is loaded.
+%
+%    \begin{macrocode}
+\prop_new:N  \g__problib_assign_prop
+\bool_new:N  \g__problib_record_bool
+\str_new:N   \g__problib_current_str
+\int_new:N   \g__problib_today_int
+\iow_new:N   \g__problib_iow
+\bool_gset_true:N \g__problib_record_bool
+
+\keys_define:nn { problib / assignment }
+  {
+    name   .prop_gput:N = \g__problib_assign_prop ,
+    course .prop_gput:N = \g__problib_assign_prop ,
+    term   .prop_gput:N = \g__problib_assign_prop ,
+    type   .prop_gput:N = \g__problib_assign_prop ,
+    date   .prop_gput:N = \g__problib_assign_prop ,
+    record .bool_gset:N = \g__problib_record_bool ,
+  }
+
+\NewDocumentCommand \problibassignment { m }
+  { \keys_set:nn { problib / assignment } {#1} }
+\@onlypreamble \problibassignment
+
+\cs_new:Npn \__problib_two:n #1
+  { \int_compare:nNnT {#1} < { 10 } { 0 } \int_eval:n {#1} }
+
+\cs_new:Npn \__problib_field:n #1
+  { #1 = { \prop_item:Nn \g__problib_assign_prop {#1} } , }
+
+\cs_new_protected:Npn \__problib_begin_assignment:
+  {
+    \prop_if_in:NnF \g__problib_assign_prop { name }
+      { \prop_gput:NnV \g__problib_assign_prop { name } \c_sys_jobname_str }
+    \prop_if_in:NnF \g__problib_assign_prop { date }
+      {
+        \prop_gput:Nne \g__problib_assign_prop { date }
+          {
+            \int_use:N \c_sys_year_int -
+            \__problib_two:n { \c_sys_month_int } -
+            \__problib_two:n { \c_sys_day_int }
+          }
+      }
+    \str_gset:Ne \g__problib_current_str
+      {
+        \prop_item:Nn \g__problib_assign_prop { name } |
+        \prop_item:Nn \g__problib_assign_prop { course } |
+        \prop_item:Nn \g__problib_assign_prop { term }
+      }
+    \__problib_set_today:e { \prop_item:Nn \g__problib_assign_prop { date } }
+    \iow_open:Nn \g__problib_iow { \c_sys_jobname_str .pbu }
+    \iow_now:Ne \g__problib_iow
+      {
+        \token_to_str:N \problibrecord
+        {
+          \__problib_field:n { name }
+          \__problib_field:n { course }
+          \__problib_field:n { term }
+          \__problib_field:n { type }
+          \__problib_field:n { date }
+          record = { \bool_if:NTF \g__problib_record_bool { true } { false } }
+        }
+      }
+    \__problib_load_db:e { \l__problib_library_str usage-db.tex }
+  }
+%    \end{macrocode}
+%
+% \subsection{Dates}
+%
+% Dates are converted to a day count (a Julian day number) so that reuse
+% windows can be measured in days.
+%
+%    \begin{macrocode}
+\regex_const:Nn \c__problib_date_regex
+  { \A \d{4} - (0?[1-9]|1[0-2]) - (0?[1-9]|[12]\d|3[01]) \Z }
+
+\cs_new:Npn \__problib_days:n #1 { \__problib_days:w #1 \q_stop }
+\cs_new:Npn \__problib_days:w #1 - #2 - #3 \q_stop
+  {
+    \__problib_days:ffn
+      { \int_eval:n { #1 + 4800 - \int_div_truncate:nn { 14 - #2 } { 12 } } }
+      { \int_eval:n { #2 + 12 * \int_div_truncate:nn { 14 - #2 } { 12 } - 3 } }
+      {#3}
+  }
+\cs_new:Npn \__problib_days:nnn #1#2#3
+  {
+    \int_eval:n
+      {
+        #3 + \int_div_truncate:nn { 153 * #2 + 2 } { 5 } + 365 * #1
+        + \int_div_truncate:nn {#1} { 4 }
+        - \int_div_truncate:nn {#1} { 100 }
+        + \int_div_truncate:nn {#1} { 400 }
+      }
+  }
+\cs_generate_variant:Nn \__problib_days:nnn { ff }
+
+\cs_new_protected:Npn \__problib_set_today:n #1
+  {
+    \regex_match:NnTF \c__problib_date_regex {#1}
+      { \int_gset:Nn \g__problib_today_int { \__problib_days:n {#1} } }
+      {
+        \msg_warning:nnn { problib } { bad-date } {#1}
+        \int_set_eq:NN \l__problib_warnreuse_int \c_zero_int
+      }
+  }
+\cs_generate_variant:Nn \__problib_set_today:n { e }
+%    \end{macrocode}
+%
+% \subsection{The usage database}
+%
+% \texttt{usage-db.tex} holds one line per problem,
+% \cs{problibusage}\marg{path}\marg{entries}, where each entry is
+% \cs{problibentry}\marg{date}\marg{name}\marg{course}\marg{term}\marg{type}\marg{file},
+% newest first. It is read with the special characters of file paths made
+% harmless, and each problem's entries are stored unexpanded so that
+% \cs{problibentry} can be given different meanings when they are used.
+%
+%    \begin{macrocode}
+\prop_new:N \g__problib_usage_prop
+\bool_new:N \g__problib_db_bool
+
+\cs_new_protected:Npn \__problib_load_db:n #1
+  {
+    \file_if_exist:nTF {#1}
+      {
+        \group_begin:
+          \clist_map_inline:nn { \#, \$, \%, \&, \^, \_, \~ }
+            { \char_set_catcode_other:N ##1 }
+          \cs_set_protected:Npn \problibusage ##1##2
+            { \prop_gput:Nnn \g__problib_usage_prop {##1} {##2} }
+          \file_input:n {#1}
+        \group_end:
+        \bool_gset_true:N \g__problib_db_bool
+      }
+      { \msg_warning:nnn { problib } { no-db } {#1} }
+  }
+\cs_generate_variant:Nn \__problib_load_db:n { e }
+%    \end{macrocode}
+%
+% For the current problem, fetch its entries and find the most recent one that
+% does not belong to the assignment being compiled.
+%
+%    \begin{macrocode}
+\str_new:N \l__problib_path_str
+\tl_new:N  \l__problib_uses_tl
+\tl_new:N  \l__problib_last_tl
+
+\cs_new_protected:Npn \__problib_scan_usage:
+  {
+    \tl_clear:N \l__problib_last_tl
+    \prop_get:NVNF \g__problib_usage_prop \l__problib_path_str \l__problib_uses_tl
+      { \tl_clear:N \l__problib_uses_tl }
+    \cs_set_protected:Npn \problibentry ##1##2##3##4##5##6
+      {
+        \tl_if_empty:NT \l__problib_last_tl
+          {
+            \str_if_eq:eeF { \tl_to_str:n { ##2 | ##3 | ##4 } } { \g__problib_current_str }
+              { \tl_set:Nn \l__problib_last_tl { {##1} {##2} {##3} {##4} } }
+          }
+      }
+    \l__problib_uses_tl
+  }
+
+\cs_new_protected:Npn \__problib_check_reuse:
+  {
+    \bool_lazy_and:nnT
+      { \int_compare_p:nNn \l__problib_warnreuse_int > \c_zero_int }
+      { ! \tl_if_empty_p:N \l__problib_last_tl }
+      { \exp_after:wN \__problib_check_reuse:nnnn \l__problib_last_tl }
+  }
+\cs_new_protected:Npn \__problib_check_reuse:nnnn #1#2#3#4
+  {
+    \regex_match:NnT \c__problib_date_regex {#1}
+      {
+        \int_compare:nNnT
+          { \g__problib_today_int - \__problib_days:n {#1} } < \l__problib_warnreuse_int
+          {
+            \msg_warning:nneee { problib } { reuse } { \l__problib_path_str }
+              { \exp_not:n {#2} \tl_if_blank:nF {#4} { ~( \exp_not:n {#4} ) } } {#1}
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{Answer space}
+%
+% A space is skipped when it is blank, zero, or when an answer key is being
+% printed without \texttt{keyspace}. Values starting with a control sequence
+% (\cs{fill}, \cs{stretch}) are always used.
+%
+%    \begin{macrocode}
+\cs_new_protected:Npn \__problib_space:n #1
+  {
+    \bool_lazy_or:nnF
+      { \tl_if_blank_p:n {#1} }
+      {
+        \bool_lazy_and_p:nn
+          { \legacy_if_p:n { printanswers } } { ! \l__problib_keyspace_bool }
+      }
+      {
+        \tl_if_head_eq_catcode:nNTF {#1} \scan_stop:
+          { \__problib_fill:n {#1} }
+          { \dim_compare:nNnF {#1} = \c_zero_dim { \__problib_fill:n {#1} } }
+      }
+  }
+\cs_generate_variant:Nn \__problib_space:n { V, e }
+
+\cs_new_protected:Npn \__problib_fill:n #1
+  { \par \use:c { __problib_fill_ \l__problib_spacestyle_str :n } {#1} }
+\cs_new_protected:Npn \__problib_fill_blank:n       { \vspace }
+\cs_new_protected:Npn \__problib_fill_lines:n       { \fillwithlines }
+\cs_new_protected:Npn \__problib_fill_dottedlines:n { \fillwithdottedlines }
+\cs_new_protected:Npn \__problib_fill_box:n         { \makeemptybox }
+\cs_new_protected:Npn \__problib_fill_grid:n        { \fillwithgrid }
+
+\NewDocumentCommand \problemspace { o m }
+  {
+    \group_begin:
+      \IfValueT {#1} { \keys_set:nn { problib } { spacestyle = #1 } }
+      \__problib_space:n {#2}
+    \group_end:
+  }
+%    \end{macrocode}
+%
+% \texttt{exam} defines \cs{part} inside the \texttt{parts} environment, so
+% \pl{} wraps it (and \cs{subpart}) right after the environment starts, but
+% only within problems inserted by \cs{useproblem}. Each part inserts the
+% space of the previous one; the end of the environment inserts the space of
+% the last. Parts inside a \texttt{solution} are not counted.
+%
+%    \begin{macrocode}
+\int_new:N  \g__problib_part_int
+\int_new:N  \g__problib_subpart_int
+\bool_new:N \g__problib_has_sub_bool
+
+\cs_new:Npn \__problib_item:Nn #1#2
+  { \clist_item:Nn #1 { \int_min:nn {#2} { \clist_count:N #1 } } }
+
+\cs_new_protected:Npn \__problib_unless_solution:n #1
+  { \legacy_if:nF { @insolution } {#1} }
+
+\cs_new_protected:Npn \__problib_part_space:
+  {
+    \bool_if:NF \g__problib_has_sub_bool
+      {
+        \__problib_space:e
+          { \__problib_item:Nn \l__problib_partspace_clist \g__problib_part_int }
+      }
+  }
+\cs_new_protected:Npn \__problib_subpart_space:
+  {
+    \__problib_space:e
+      { \__problib_item:Nn \l__problib_subpartspace_clist \g__problib_subpart_int }
+  }
+
+\cs_new_protected:Npn \__problib_next_part:
+  {
+    \__problib_unless_solution:n
+      {
+        \int_compare:nNnT \g__problib_part_int > \c_zero_int { \__problib_part_space: }
+        \int_gincr:N \g__problib_part_int
+        \int_gzero:N \g__problib_subpart_int
+        \bool_gset_false:N \g__problib_has_sub_bool
+      }
+  }
+\cs_new_protected:Npn \__problib_next_subpart:
+  {
+    \__problib_unless_solution:n
+      {
+        \int_compare:nNnT \g__problib_subpart_int > \c_zero_int
+          { \__problib_subpart_space: }
+        \int_gincr:N \g__problib_subpart_int
+      }
+  }
+
+\cs_new_protected:Npn \__problib_wrap:NNN #1#2#3
+  {
+    \cs_set_eq:cN { __problib_ \cs_to_str:N #1 :w } #1
+    \cs_set_eq:cN { __problib_ \cs_to_str:N #2 :w } #2
+    \cs_set_protected:Npe #1 { \exp_not:N #3 \exp_not:c { __problib_ \cs_to_str:N #1 :w } }
+    \cs_set_protected:Npe #2 { \exp_not:N #3 \exp_not:c { __problib_ \cs_to_str:N #2 :w } }
+  }
+
+\AddToHook { cmd/parts/after }
+  {
+    \bool_if:NT \l__problib_active_bool
+      { \__problib_wrap:NNN \part \bonuspart \__problib_next_part: }
+  }
+\AddToHook { cmd/subparts/after }
+  {
+    \bool_if:NT \l__problib_active_bool
+      { \__problib_wrap:NNN \subpart \bonussubpart \__problib_next_subpart: }
+  }
+\AddToHook { env/parts/end }
+  {
+    \bool_if:NT \l__problib_active_bool
+      {
+        \__problib_unless_solution:n
+          { \int_compare:nNnT \g__problib_part_int > \c_zero_int { \__problib_part_space: } }
+      }
+  }
+\AddToHook { env/subparts/end }
+  {
+    \bool_if:NT \l__problib_active_bool
+      {
+        \__problib_unless_solution:n
+          {
+            \int_compare:nNnT \g__problib_subpart_int > \c_zero_int
+              { \__problib_subpart_space: }
+            \bool_gset_true:N \g__problib_has_sub_bool
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{Problems}
+%
+% \cs{useproblem} normalizes the path, records the use and inputs the file
+% inside a group, so its options stay local to the problem. The
+% \texttt{problem} environment stores the metadata, issues \cs{question} and
+% adds the question's space when it had no parts.
+%
+%    \begin{macrocode}
+\prop_new:N \l__problib_meta_prop
+\regex_const:Nn \c__problib_ext_regex { \A (\./)+ | \.tex \Z }
+
+\cs_new_protected:Npn \__problib_meta:n #1
+  { \prop_put:Nnn \l__problib_meta_prop {#1} { } }
+\cs_new_protected:Npn \__problib_meta:nn #1#2
+  { \prop_put:Nnn \l__problib_meta_prop {#1} {#2} }
+
+\NewExpandableDocumentCommand \problemmeta { m }
+  { \prop_item:Nn \l__problib_meta_prop {#1} }
+
+\NewDocumentCommand \useproblem { O{} m }
+  {
+    \group_begin:
+      \bool_set_true:N \l__problib_active_bool
+      \keys_set:nn { problib / use } {#1}
+      \str_set:Nn \l__problib_path_str {#2}
+      \tl_trim_spaces:N \l__problib_path_str
+      \regex_replace_all:NnN \c__problib_ext_regex { } \l__problib_path_str
+      \file_if_exist:nTF { \l__problib_library_str \l__problib_path_str .tex }
+        {
+          \__problib_scan_usage:
+          \bool_if:NF \g__problib_catalog_bool
+            {
+              \iow_now:Ne \g__problib_iow
+                { \token_to_str:N \problibuse { \l__problib_path_str } }
+              \__problib_check_reuse:
+            }
+          \file_input:n { \l__problib_library_str \l__problib_path_str .tex }
+        }
+        { \msg_error:nne { problib } { missing } { \l__problib_path_str } }
+    \group_end:
+  }
+
+\NewDocumentEnvironment { problem } { O{} }
+  {
+    \prop_clear:N \l__problib_meta_prop
+    \keyval_parse:nnn \__problib_meta:n \__problib_meta:nn {#1}
+    \int_gzero:N \g__problib_part_int
+    \bool_if:NT \l__problib_newpage_bool { \newpage }
+    \tl_if_empty:NT \l__problib_points_tl
+      { \prop_get:NnNF \l__problib_meta_prop { points } \l__problib_points_tl { } }
+    \tl_if_blank:VTF \l__problib_points_tl
+      { \question }
+      { \use:e { \exp_not:N \question [ \l__problib_points_tl ] } }
+    \bool_if:NTF \g__problib_catalog_bool
+      { \__problib_catalog_note: }
+      { \bool_if:NT \l__problib_showdata_bool { \__problib_data_note: } }
+  }
+  {
+    \int_compare:nNnT \g__problib_part_int = \c_zero_int
+      { \__problib_space:V \l__problib_problemspace_tl }
+  }
+%    \end{macrocode}
+%
+% \subsection{Notes and tables}
+%
+% The heading, metadata table and usage table shared by \texttt{showdata} notes
+% and the catalog.
+%
+%    \begin{macrocode}
+\tl_new:N  \l__problib_rows_tl
+\int_new:N \l__problib_cell_int
+\bool_new:N \l__problib_show_metadata_bool
+\bool_new:N \l__problib_show_usage_bool
+\bool_new:N \l__problib_show_solution_bool
+
+\cs_new_protected:Npn \__problib_meta_key: { \leavevmode \sffamily \color { gray } }
+
+\cs_new_protected:Npn \__problib_heading:
+  {
+    \texttt { \l__problib_path_str }
+    \prop_get:NnNT \l__problib_meta_prop { title } \l__problib_rows_tl
+      { \quad \textit { \mdseries \l__problib_rows_tl } }
+    \par
+  }
+%    \end{macrocode}
+%
+% Metadata other than the title, two key/value pairs per row.
+%
+%    \begin{macrocode}
+\cs_new_protected:Npn \__problib_meta_table:
+  {
+    \tl_clear:N \l__problib_rows_tl
+    \int_zero:N \l__problib_cell_int
+    \prop_map_inline:Nn \l__problib_meta_prop
+      {
+        \str_if_eq:nnF {##1} { title }
+          {
+            \int_incr:N \l__problib_cell_int
+            \tl_put_right:Nn \l__problib_rows_tl { ##1 & ##2 }
+            \tl_put_right:Ne \l__problib_rows_tl
+              { \int_if_odd:nTF \l__problib_cell_int { & } { \exp_not:N \\ } }
+          }
+      }
+    \tl_if_empty:NF \l__problib_rows_tl
+      {
+        \begin{tabularx} { \linewidth }
+          {
+            @{} >{ \__problib_meta_key: } l >{ \raggedright \arraybackslash } X
+            @{ \hspace { 1.5em } }
+            >{ \__problib_meta_key: } l >{ \raggedright \arraybackslash } X @{}
+          }
+          \l__problib_rows_tl
+        \end{tabularx}
+        \par
+      }
+  }
+%    \end{macrocode}
+%
+% Uses of the current problem, newest first, excluding the assignment being
+% compiled.
+%
+%    \begin{macrocode}
+\cs_new_protected:Npn \__problib_usage_table:
+  {
+    \tl_clear:N \l__problib_rows_tl
+    \cs_set_protected:Npn \problibentry ##1##2##3##4##5##6
+      {
+        \str_if_eq:eeF { \tl_to_str:n { ##2 | ##3 | ##4 } } { \g__problib_current_str }
+          { \tl_put_right:Nn \l__problib_rows_tl { ##1 & ##3 & ##4 & ##5 & ##2 \\ } }
+      }
+    \l__problib_uses_tl
+    \tl_if_empty:NTF \l__problib_rows_tl
+      { { \__problib_meta_key: Not~used~before. } \par }
+      {
+        \begin{tabularx} { \linewidth }
+          { @{} l l l l >{ \raggedright \arraybackslash } X @{} }
+          \__problib_meta_key: date & \__problib_meta_key: course &
+          \__problib_meta_key: term & \__problib_meta_key: type &
+          \__problib_meta_key: assignment \\
+          \l__problib_rows_tl
+        \end{tabularx}
+        \par
+      }
+  }
+
+\cs_new_protected:Npn \__problib_data_note:
+  {
+    \leavevmode
+    \group_begin:
+      \footnotesize \color { gray }
+      \__problib_heading:
+      \__problib_usage_table:
+    \group_end:
+    \smallskip
+  }
+
+\cs_new_protected:Npn \__problib_catalog_note:
+  {
+    { \bfseries \__problib_heading: }
+    \group_begin:
+      \footnotesize
+      \bool_if:NT \l__problib_show_metadata_bool { \__problib_meta_table: }
+      \bool_lazy_and:nnT \l__problib_show_metadata_bool \l__problib_show_usage_bool
+        { \smallskip }
+      \bool_if:NT \l__problib_show_usage_bool { \__problib_usage_table: }
+    \group_end:
+    \smallskip
+  }
+%    \end{macrocode}
+%
+% \subsection{The catalog}
+%
+% \cs{problibcatalog} passes its filters to Lua, which scans the library and
+% the roots, writes the usage database and returns the matching paths. The
+% problems are then inserted with \cs{useproblem}, without answer space.
+%
+%    \begin{macrocode}
+\str_new:N   \l__problib_cat_folders_str
+\str_new:N   \l__problib_cat_tags_str
+\str_new:N   \l__problib_cat_topics_str
+\str_new:N   \l__problib_cat_difficulty_str
+\str_new:N   \l__problib_cat_unusedsince_str
+\str_new:N   \l__problib_cat_sort_str
+\clist_new:N \l__problib_cat_clist
+
+\cs_new_protected:Npn \__problib_set_show:n #1
+  {
+    \clist_map_inline:nn { metadata, usage, solution }
+      { \bool_set_false:c { l__problib_show_ ##1 _bool } }
+    \clist_map_inline:nn {#1}
+      {
+        \bool_if_exist:cTF { l__problib_show_ ##1 _bool }
+          { \bool_set_true:c { l__problib_show_ ##1 _bool } }
+          { \msg_error:nnn { problib } { bad-show } {##1} }
+      }
+  }
+
+\keys_define:nn { problib / filter }
+  {
+    folders     .str_set:N  = \l__problib_cat_folders_str ,
+    tags        .str_set:N  = \l__problib_cat_tags_str ,
+    topics      .str_set:N  = \l__problib_cat_topics_str ,
+    difficulty  .str_set:N  = \l__problib_cat_difficulty_str ,
+    unusedsince .str_set:N  = \l__problib_cat_unusedsince_str ,
+    sort        .choices:nn = { path, difficulty, lastused }
+      { \str_set:NV \l__problib_cat_sort_str \l_keys_choice_tl } ,
+    sort        .initial:n  = path ,
+    show        .code:n     = \__problib_set_show:n {#1} ,
+    show        .initial:n  = { metadata, usage } ,
+  }
+
+\cs_new:Npn \__problib_lua_opt:nN #1#2 { #1 = " \lua_escape:e {#2} " , }
+
+\NewDocumentCommand \problibcatalog { O{} }
+  {
+    \bool_if:NTF \g__problib_catalog_bool
+      { \__problib_catalog:n {#1} }
+      { \msg_error:nn { problib } { not-catalog } }
+  }
+
+\cs_new_protected:Npn \__problib_catalog:n #1
+  {
+    \group_begin:
+      \keys_set:nn { problib / filter } {#1}
+      \clist_set:Ne \l__problib_cat_clist
+        {
+          \lua_now:e
+            {
+              problib.catalog {
+                \__problib_lua_opt:nN { roots }       \l__problib_roots_str
+                \__problib_lua_opt:nN { folders }     \l__problib_cat_folders_str
+                \__problib_lua_opt:nN { tags }        \l__problib_cat_tags_str
+                \__problib_lua_opt:nN { topics }      \l__problib_cat_topics_str
+                \__problib_lua_opt:nN { difficulty }  \l__problib_cat_difficulty_str
+                \__problib_lua_opt:nN { unusedsince } \l__problib_cat_unusedsince_str
+                \__problib_lua_opt:nN { sort }        \l__problib_cat_sort_str
+              }
+            }
+        }
+      \bool_if:NF \g__problib_db_bool { \__problib_load_db:n { usage-db.tex } }
+      \str_clear:N \l__problib_library_str
+      \tl_clear:N \l__problib_problemspace_tl
+      \clist_clear:N \l__problib_partspace_clist
+      \clist_clear:N \l__problib_subpartspace_clist
+      \bool_if:NTF \l__problib_show_solution_bool
+        { \legacy_if_set_true:n { printanswers } }
+        { \legacy_if_set_false:n { printanswers } }
+      \clist_if_empty:NTF \l__problib_cat_clist
+        { \emph { No~problems~match. } \par }
+        {
+          \begin { questions }
+            \clist_map_inline:Nn \l__problib_cat_clist { \useproblem {##1} }
+          \end { questions }
+        }
+    \group_end:
+  }
+%    \end{macrocode}
+%
+% \subsection{Options and mode}
+%
+% In catalog mode the Lua code at the end of this file is loaded: \TeX{} stops
+% reading at \cs{file\_input\_stop:}, and Lua reads the text between the
+% \texttt{--[[problib.lua]]} markers from the same file. Otherwise the record
+% is opened at the start of the document.
+%
+%    \begin{macrocode}
+\ProcessKeyOptions [ problib ]
+
+\bool_if:NTF \g__problib_catalog_bool
+  {
+    \sys_if_engine_luatex:TF
+      {
+        \lua_now:n
+          {
+            local~f=io.open(kpse.find_file("problib.sty"));
+            local~src=f:read("a");
+            f:close();
+            local~_,s=src:find("--[[problib"..".lua]]",1,true);
+            local~t=s~and~src:find("--[[/problib"..".lua]]",s,true);
+            assert(t,"problib:~Lua~code~not~found~in~problib.sty");
+            problib=load(src:sub(s+1,t-1),"=problib.lua")();
+          }
+      }
+      { \msg_error:nn { problib } { no-luatex } }
+  }
+  {
+    \AtBeginDocument { \__problib_begin_assignment: }
+    \AtEndDocument { \iow_close:N \g__problib_iow }
+  }
+
+\file_input_stop:
+%    \end{macrocode}
+%
+% \subsection{Lua code}
+%
+% The library is every \texttt{.tex} file below the catalog's folder that
+% contains a \texttt{problem} environment and no \cs{documentclass}. Metadata is
+% read from the environment's optional argument. Hidden files and symbolic
+% links are skipped.
+%
+%    \begin{macrocode}
+--[[problib.lua]]
+
+local problib = {}
+
+local function read_file(path)
+  local f = io.open(path, "r")
+  if not f then return nil end
+  local s = f:read("a")
+  f:close()
+  return s
+end
+
+local function warn(msg)
+  texio.write_nl("term and log", "Package problib Warning: " .. msg)
+end
+
+local function trim(s)
+  s = s:match("^%s*(.-)%s*$")
+  if s:match("^%b{}$") then s = s:sub(2, -2):match("^%s*(.-)%s*$") end
+  return s
+end
+
+-- Split on commas outside braces.
+local function split(s)
+  local items, depth, start = {}, 0, 1
+  for i = 1, #s do
+    local c = s:byte(i)
+    if c == 123 then depth = depth + 1
+    elseif c == 125 then depth = depth - 1
+    elseif c == 44 and depth == 0 then
+      items[#items + 1] = s:sub(start, i - 1)
+      start = i + 1
+    end
+  end
+  items[#items + 1] = s:sub(start)
+  return items
+end
+
+local function set_of(s)
+  local t = {}
+  for _, item in ipairs(split(s or "")) do
+    item = trim(item):lower()
+    if item ~= "" then t[item] = true end
+  end
+  return t
+end
+
+local function walk(dir, ext, out, rel)
+  local ok, iter, state = pcall(lfs.dir, dir)
+  if not ok then return out end
+  for name in iter, state do
+    if name:sub(1, 1) ~= "." then
+      local full = dir .. "/" .. name
+      local mode = lfs.symlinkattributes(full, "mode")
+      if mode == "directory" then
+        walk(full, ext, out, rel .. name .. "/")
+      elseif mode == "file" and name:sub(-#ext) == ext then
+        out[#out + 1] = { full = full, rel = rel .. name:sub(1, -#ext - 1) }
+      end
+    end
+  end
+  return out
+end
+
+-- Returns the metadata table of a problem file, or nil if it is not one.
+local function parse_problem(text)
+  text = ("\n" .. text):gsub("([^\\])%%[^\n]*", "%1")
+  if text:find("\\documentclass") then return nil end
+  local _, e = text:find("\\begin%s*{problem}%s*")
+  if not e then return nil end
+  local meta = {}
+  if text:sub(e + 1, e + 1) ~= "[" then return meta end
+  local depth = 0
+  for i = e + 2, #text do
+    local c = text:byte(i)
+    if c == 123 then depth = depth + 1
+    elseif c == 125 then depth = depth - 1
+    elseif c == 93 and depth == 0 then
+      for _, item in ipairs(split(text:sub(e + 2, i - 1))) do
+        local k, v = item:match("^%s*([^=]-)%s*=(.*)$")
+        if k and k ~= "" then meta[k] = trim(v) end
+      end
+      break
+    end
+  end
+  return meta
+end
+%    \end{macrocode}
+%
+% Usage records are collected from every \texttt{.pbu} file below the roots.
+% Identical uses (the same problem, date, name, course and term, as happens
+% when an assignment folder is copied) are counted once.
+%
+%    \begin{macrocode}
+local function collect_usage(roots)
+  local usage, seen = {}, {}
+  local home = os.getenv("HOME") or "~"
+  for _, root in ipairs(split(roots)) do
+    root = trim(root):gsub("^~", home):gsub("/$", "")
+    if root ~= "" then
+      if lfs.attributes(root, "mode") ~= "directory" then
+        warn("usage root '" .. root .. "' not found")
+      end
+      for _, f in ipairs(walk(root, ".pbu", {}, "")) do
+        local s = read_file(f.full)
+        local rec = s and s:match("\\problibrecord%s*(%b{})")
+        if rec then
+          local r = {}
+          for k, v in rec:sub(2, -2):gmatch("(%w+)%s*=%s*(%b{})") do r[k] = v:sub(2, -2) end
+          if r.record ~= "false" then
+            local entry = {
+              r.date or "", r.name or "", r.course or "", r.term or "", r.type or "", f.full
+            }
+            local id = table.concat(entry, "\0", 1, 4)
+            for p in s:gmatch("\\problibuse%s*(%b{})") do
+              p = p:sub(2, -2)
+              local key = p .. "\0" .. id
+              if not seen[key] then
+                seen[key] = true
+                usage[p] = usage[p] or {}
+                table.insert(usage[p], entry)
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+  for _, uses in pairs(usage) do
+    table.sort(uses, function(a, b)
+      if a[1] ~= b[1] then return a[1] > b[1] end
+      return a[2] < b[2]
+    end)
+  end
+  return usage
+end
+
+local function write_db(usage, path)
+  local paths = {}
+  for p in pairs(usage) do paths[#paths + 1] = p end
+  table.sort(paths)
+  local lines = {}
+  for i, p in ipairs(paths) do
+    local entries = {}
+    for j, u in ipairs(usage[p]) do
+      entries[j] = "\\problibentry{" .. table.concat(u, "}{") .. "}"
+    end
+    lines[i] = "\\problibusage{" .. p .. "}{" .. table.concat(entries) .. "}"
+  end
+  local f = io.open(path, "w")
+  if not f then
+    warn("cannot write '" .. path .. "'")
+    return
+  end
+  f:write(table.concat(lines, "\n"), "\n")
+  f:close()
+end
+
+local cache
+
+local function scan(roots)
+  if cache then return cache end
+  local problems = {}
+  for _, f in ipairs(walk(lfs.currentdir(), ".tex", {}, "")) do
+    local text = read_file(f.full)
+    local meta = text and parse_problem(text)
+    if meta then problems[#problems + 1] = { path = f.rel, meta = meta } end
+  end
+  local usage = collect_usage(roots)
+  write_db(usage, "usage-db.tex")
+  cache = { problems = problems, usage = usage }
+  return cache
+end
+%    \end{macrocode}
+%
+% Filtering and sorting. The result is returned to \TeX{} as a comma list of
+% paths with string catcodes.
+%
+%    \begin{macrocode}
+local function any(want, have)
+  for w in pairs(want) do
+    if have[w] then return true end
+  end
+  return false
+end
+
+function problib.catalog(opts)
+  local data = scan(opts.roots)
+  local usage = data.usage
+
+  local folders = {}
+  for _, f in ipairs(split(opts.folders)) do
+    f = trim(f):gsub("/$", "")
+    if f ~= "" then folders[#folders + 1] = f end
+  end
+  local tags, topics = set_of(opts.tags), set_of(opts.topics)
+  local lo, hi
+  if opts.difficulty ~= "" then
+    lo, hi = opts.difficulty:match("^%s*(%d+)%s*%-?%s*(%d*)%s*$")
+    if lo then
+      lo, hi = tonumber(lo), tonumber(hi) or tonumber(lo)
+    else
+      warn("ignoring difficulty filter '" .. opts.difficulty .. "'")
+    end
+  end
+  local since = trim(opts.unusedsince)
+
+  local function last(p)
+    local u = usage[p.path]
+    return u and u[1][1] or ""
+  end
+
+  local function keep(p)
+    if #folders > 0 then
+      local hit = false
+      for _, f in ipairs(folders) do
+        if p.path == f or p.path:sub(1, #f + 1) == f .. "/" then hit = true break end
+      end
+      if not hit then return false end
+    end
+    if next(tags) and not any(tags, set_of(p.meta.tags)) then return false end
+    if next(topics) and not any(topics, set_of(p.meta.topics)) then return false end
+    if lo then
+      local d = tonumber(p.meta.difficulty)
+      if not d or d < lo or d > hi then return false end
+    end
+    if since ~= "" and last(p) >= since then return false end
+    return true
+  end
+
+  local result = {}
+  for _, p in ipairs(data.problems) do
+    if keep(p) then result[#result + 1] = p end
+  end
+
+  local key
+  if opts.sort == "difficulty" then
+    key = function(p) return tonumber(p.meta.difficulty) or math.huge end
+  elseif opts.sort == "lastused" then
+    key = last
+  end
+  table.sort(result, function(a, b)
+    if key then
+      local x, y = key(a), key(b)
+      if x ~= y then return x < y end
+    end
+    return a.path < b.path
+  end)
+
+  local paths = {}
+  for i, p in ipairs(result) do paths[i] = p.path end
+  tex.sprint(-2, table.concat(paths, ","))
+end
+
+return problib
+--[[/problib.lua]]
+%</package>
+%    \end{macrocode}
+%
+% \Finale
+\endinput
